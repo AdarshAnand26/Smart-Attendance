@@ -1,0 +1,22 @@
+streamlit # for building the web app
+
+#utiltities
+numpy
+pandas
+
+#Face recognition
+scikit-learn
+dlib-bin 
+
+git+https://github.com/ageitgey/face_recognition_models
+setuptools<70.0.0
+
+supabase # a readymade backend for my project
+bcrypt #help me covert the normal password to hash password
+
+segno # for generating QR code
+pillow # for image processing
+
+
+librosa
+resemblyzers
