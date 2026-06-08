@@ -19,4 +19,4 @@ pillow # for image processing
 
 
 librosa
-resemblyzers
+resemblyzer
