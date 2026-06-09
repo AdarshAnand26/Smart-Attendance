@@ -34,9 +34,10 @@ def student_dashboard():
             """, unsafe_allow_html=True)
         with col_b:
             if st.button("Logout", type='secondary', key='loginbackbtn',
-                          use_container_width=True):
+                         use_container_width=True):
                 st.session_state['is_logged_in'] = False
                 del st.session_state.student_data
+                st.session_state.show_registration = False
                 st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -48,7 +49,7 @@ def student_dashboard():
             <h3 style="
                 font-size: 1.1rem;
                 font-weight: 700;
-               color: #E2E8F0 !important;
+                color: #E2E8F0 !important;
                 margin: 0;
             ">Enrolled Subjects</h3>
         """, unsafe_allow_html=True)
@@ -98,12 +99,12 @@ def student_dashboard():
             stats = stats_map.get(sid, {"total": 0, "attended": 0})
 
             def unenroll_button(s=sub, subject_id=sid):
-               if st.button(
-    "Unenroll from this course",
-    key=f"unenroll_{subject_id}",
-    type='tertiary',
-    use_container_width=True,
-):
+                if st.button(
+                    "Unenroll from this course",
+                    key=f"unenroll_{subject_id}",
+                    type='tertiary',
+                    use_container_width=True,
+                ):
                     unenroll_student_to_subject(student_id, subject_id)
                     st.toast(f"Unenrolled from {s['name']}.")
                     st.rerun()
@@ -131,6 +132,14 @@ def student_screen():
         student_dashboard()
         return
 
+    # ✅ Fix 1: Initialize session state for registration
+    if 'show_registration' not in st.session_state:
+        st.session_state.show_registration = False
+
+    # ✅ Fix 2: Store photo in session state so it persists
+    if 'captured_photo' not in st.session_state:
+        st.session_state.captured_photo = None
+
     # --- Top bar ---
     c1, c2 = st.columns([1, 1], vertical_alignment='center')
     with c1:
@@ -139,6 +148,8 @@ def student_screen():
         st.markdown("<div style='display:flex; justify-content:flex-end;'>", unsafe_allow_html=True)
         if st.button("Back to Home", type='secondary', key='loginbackbtn'):
             st.session_state['login_type'] = None
+            st.session_state.show_registration = False
+            st.session_state.captured_photo = None
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -159,36 +170,47 @@ def student_screen():
         </div>
     """, unsafe_allow_html=True)
 
-    show_registration = False
     photo_source = st.camera_input("", label_visibility="collapsed")
 
     if photo_source:
+        # ✅ Fix 3: Save photo to session state
+        st.session_state.captured_photo = photo_source
         img = np.array(Image.open(photo_source))
+
         with st.spinner('Scanning your face...'):
             detected, all_ids, num_faces = predict_attendance(img)
 
             if num_faces == 0:
                 st.warning('No face detected. Please try again.')
+                st.session_state.show_registration = False
+
             elif num_faces > 1:
                 st.warning('Multiple faces detected. Please ensure only one face is visible.')
+                st.session_state.show_registration = False
+
             else:
                 if detected:
                     student_id = list(detected.keys())[0]
                     all_students = get_all_students()
-                    student = next((s for s in all_students if s['student_id'] == student_id), None)
+                    student = next(
+                        (s for s in all_students if s['student_id'] == student_id), None
+                    )
                     if student:
                         st.session_state.is_logged_in = True
                         st.session_state.user_role = 'student'
                         st.session_state.student_data = student
+                        st.session_state.show_registration = False
+                        st.session_state.captured_photo = None
                         st.toast(f"Welcome back, {student['name']}!")
                         time.sleep(1)
                         st.rerun()
                 else:
+                    # ✅ Fix 4: Set session state not local variable
                     st.info('Face not recognized. You may be a new student.')
-                    show_registration = True
+                    st.session_state.show_registration = True
 
-    # --- Registration form ---
-    if show_registration:
+    # ✅ Fix 5: Use session state to show registration form
+    if st.session_state.show_registration and st.session_state.captured_photo:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("""
             <h3 style="
@@ -208,7 +230,8 @@ def student_screen():
                     font-weight: 600;
                     color: #CBD5E1 !important;
                     margin: 0.5rem 0 4px 0;
-                ">Voice Enrollment <span style='color:#94A3B8; font-weight:400;'>(Optional)</span></p>
+                ">Voice Enrollment
+                <span style='color:#94A3B8; font-weight:400;'>(Optional)</span></p>
                 <p style="color: #94A3B8 !important; font-size: 0.78rem; margin: 0 0 8px 0;">
                     Record a short phrase for voice-based attendance
                 </p>
@@ -225,7 +248,8 @@ def student_screen():
             if st.button('Create Account', type='primary', use_container_width=True):
                 if new_name:
                     with st.spinner('Creating your profile...'):
-                        img = np.array(Image.open(photo_source))
+                        # ✅ Fix 6: Use session state photo not local variable
+                        img = np.array(Image.open(st.session_state.captured_photo))
                         encodings = get_face_embeddings(img)
                         if encodings:
                             face_emb = encodings[0].tolist()
@@ -242,6 +266,8 @@ def student_screen():
                                 st.session_state.is_logged_in = True
                                 st.session_state.user_role = 'student'
                                 st.session_state.student_data = response_data[0]
+                                st.session_state.show_registration = False
+                                st.session_state.captured_photo = None
                                 st.toast(f'Welcome, {new_name}! Profile created.')
                                 time.sleep(1)
                                 st.rerun()
